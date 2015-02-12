@@ -1,4 +1,4 @@
-[typeahead.js][gh-page]
+typeahead.js
 =======================
 
 Modified version of typeahead.js
