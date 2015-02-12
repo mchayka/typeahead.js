@@ -206,10 +206,10 @@ var Dropdown = (function() {
       return this.getDatumForSuggestion(this._getSuggestions().first());
     },
 
-    update: function update(query) {
+    update: function update(query, excludeStr) {
       _.each(this.datasets, updateDataset);
 
-      function updateDataset(dataset) { dataset.update(query); }
+      function updateDataset(dataset) { dataset.update(query, excludeStr); }
     },
 
     empty: function empty() {

@@ -1,7 +1,7 @@
 /*!
  * typeahead.js 0.10.5
  * https://github.com/twitter/typeahead.js
- * Copyright 2013-2014 Twitter, Inc. and other contributors; Licensed MIT
+ * Copyright 2013-2015 Twitter, Inc. and other contributors; Licensed MIT
  */
 
 (function($) {
@@ -129,7 +129,11 @@
     var html = function() {
         return {
             wrapper: '<span class="twitter-typeahead"></span>',
+            input: '<input autocomplete="off" spellcheck="false" type="text">',
             dropdown: '<span class="tt-dropdown-menu"></span>',
+            button: '<span class="tt-button" role="button">&#x25BC;</span>',
+            edit: '<span class="tt-edit"></span>',
+            cancel: '<span class="tt-cancel" role="button">&times;</span>',
             dataset: '<div class="tt-dataset-%CLASS%"></div>',
             suggestions: '<span class="tt-suggestions"></span>',
             suggestion: '<div class="tt-suggestion"></div>'
@@ -138,6 +142,9 @@
     var css = function() {
         "use strict";
         var css = {
+            control: {
+                display: "none"
+            },
             wrapper: {
                 position: "relative",
                 display: "inline-block"
@@ -165,6 +172,16 @@
                 left: "0",
                 zIndex: "100",
                 display: "none"
+            },
+            button: {
+                position: "absolute",
+                right: "0",
+                top: "0",
+                cursor: "pointer"
+            },
+            cancel: {
+                position: "absolute",
+                cursor: "pointer"
             },
             suggestions: {
                 display: "block"
@@ -379,6 +396,7 @@
             onKeydown = _.bind(this._onKeydown, this);
             onInput = _.bind(this._onInput, this);
             this.$hint = $(o.hint);
+            this.$select = $(o.select);
             this.$input = $(o.input).on("blur.tt", onBlur).on("focus.tt", onFocus).on("keydown.tt", onKeydown);
             if (this.$hint.length === 0) {
                 this.setHint = this.getHint = this.clearHint = this.clearHintIfInvalid = _.noop;
@@ -394,6 +412,7 @@
                 });
             }
             this.query = this.$input.val();
+            this.$input.data("default-value", this.query);
             this.$overflowHelper = buildOverflowHelper(this.$input);
         }
         Input.normalizeQuery = function(str) {
@@ -401,7 +420,6 @@
         };
         _.mixin(Input.prototype, EventEmitter, {
             _onBlur: function onBlur() {
-                this.resetInputValue();
                 this.trigger("blurred");
             },
             _onFocus: function onFocus() {
@@ -479,6 +497,24 @@
                 this.$input.val(value);
                 silent ? this.clearHint() : this._checkInputValue();
             },
+            cancelInputValue: function cancelInputValue() {
+                this.setInputValue(this.$input.data("default-value"), true);
+                this.trigger("cancelValue");
+            },
+            getInputDefaultValue: function getInputDefaultValue() {
+                return this.$input.data("default-value");
+            },
+            checkInputQuery: function checkInputQuery() {
+                var match = false, inputValue = this.getInputValue();
+                $.each(this.$select.find("option"), function(index, item) {
+                    if ($(item).text() == inputValue) {
+                        match = true;
+                    }
+                });
+                if (!match) {
+                    this.cancelInputValue();
+                }
+            },
             resetInputValue: function resetInputValue() {
                 this.setInputValue(this.query, true);
             },
@@ -555,8 +591,9 @@
         "use strict";
         var datasetKey = "ttDataset", valueKey = "ttValue", datumKey = "ttDatum";
         function Dataset(o) {
+            var tepmlates;
             o = o || {};
-            o.templates = o.templates || {};
+            tepmlates = o.templates || {};
             if (!o.source) {
                 $.error("missing source");
             }
@@ -568,7 +605,7 @@
             this.name = o.name || _.getUniqueId();
             this.source = o.source;
             this.displayFn = getDisplayFn(o.display || o.displayKey);
-            this.templates = getTemplates(o.templates, this.displayFn);
+            this.templates = getTemplates(tepmlates, this.displayFn);
             this.$el = $(html.dataset.replace("%CLASS%", this.name));
         }
         Dataset.extractDatasetName = function extractDatasetName(el) {
@@ -636,11 +673,11 @@
             getRoot: function getRoot() {
                 return this.$el;
             },
-            update: function update(query) {
+            update: function update(query, excludeStr) {
                 var that = this;
                 this.query = query;
                 this.canceled = false;
-                this.source(query, render);
+                this.source(query, render, excludeStr);
                 function render(suggestions) {
                     if (!that.canceled && query === that.query) {
                         that._render(query, suggestions);
@@ -815,10 +852,10 @@
             getDatumForTopSuggestion: function getDatumForTopSuggestion() {
                 return this.getDatumForSuggestion(this._getSuggestions().first());
             },
-            update: function update(query) {
+            update: function update(query, excludeStr) {
                 _.each(this.datasets, updateDataset);
                 function updateDataset(dataset) {
-                    dataset.update(query);
+                    dataset.update(query, excludeStr);
                 }
             },
             empty: function empty() {
@@ -849,18 +886,26 @@
         "use strict";
         var attrsKey = "ttAttrs";
         function Typeahead(o) {
-            var $menu, $input, $hint;
+            var $menu, $input, $hint, $select, $button, $cancel, $edit, that;
             o = o || {};
-            if (!o.input) {
-                $.error("missing input");
+            if (!o.select) {
+                $.error("missing select");
             }
+            o.datasets = {};
+            that = this;
             this.isActivated = false;
             this.autoselect = !!o.autoselect;
             this.minLength = _.isNumber(o.minLength) ? o.minLength : 1;
-            this.$node = buildDom(o.input, o.withHint);
+            this.$node = buildDom(o.select, o.withHint);
+            this.$select = $(o.select);
+            $select = $(o.select);
             $menu = this.$node.find(".tt-dropdown-menu");
             $input = this.$node.find(".tt-input");
             $hint = this.$node.find(".tt-hint");
+            $button = this.$node.find(".tt-button");
+            $cancel = this.$node.find(".tt-cancel");
+            $edit = this.$node.find(".tt-edit");
+            o.datasets = getSelectDataset($select);
             $input.on("blur.tt", function($e) {
                 var active, isActive, hasActive;
                 active = document.activeElement;
@@ -886,8 +931,23 @@
             }).onSync("suggestionClicked", this._onSuggestionClicked, this).onSync("cursorMoved", this._onCursorMoved, this).onSync("cursorRemoved", this._onCursorRemoved, this).onSync("opened", this._onOpened, this).onSync("closed", this._onClosed, this).onAsync("datasetRendered", this._onDatasetRendered, this);
             this.input = new Input({
                 input: $input,
-                hint: $hint
-            }).onSync("focused", this._onFocused, this).onSync("blurred", this._onBlurred, this).onSync("enterKeyed", this._onEnterKeyed, this).onSync("tabKeyed", this._onTabKeyed, this).onSync("escKeyed", this._onEscKeyed, this).onSync("upKeyed", this._onUpKeyed, this).onSync("downKeyed", this._onDownKeyed, this).onSync("leftKeyed", this._onLeftKeyed, this).onSync("rightKeyed", this._onRightKeyed, this).onSync("queryChanged", this._onQueryChanged, this).onSync("whitespaceChanged", this._onWhitespaceChanged, this);
+                hint: $hint,
+                select: $select
+            }).onSync("focused", this._onFocused, this).onSync("blurred", this._onBlurred, this).onSync("enterKeyed", this._onEnterKeyed, this).onSync("tabKeyed", this._onTabKeyed, this).onSync("escKeyed", this._onEscKeyed, this).onSync("upKeyed", this._onUpKeyed, this).onSync("downKeyed", this._onDownKeyed, this).onSync("leftKeyed", this._onLeftKeyed, this).onSync("rightKeyed", this._onRightKeyed, this).onSync("queryChanged", this._onQueryChanged, this).onSync("whitespaceChanged", this._onWhitespaceChanged, this).onSync("cancelValue", this._checkChanges, this);
+            $button.on("mousedown.tt", function($e) {
+                $e.preventDefault();
+                that.dropdown.update("", that.input.getInputValue());
+                that.dropdown.open();
+            });
+            $cancel.on("mousedown.tt", function($e) {
+                $e.preventDefault();
+                that.input.blur();
+                that.input.cancelInputValue();
+                that._checkChanges();
+            });
+            $edit.on("click.tt", function($e) {
+                that.input.focus();
+            });
             this._setLanguageDirection();
         }
         _.mixin(Typeahead.prototype, {
@@ -919,12 +979,15 @@
             },
             _onFocused: function onFocused() {
                 this.isActivated = true;
-                this.dropdown.open();
+                this.$node.addClass("is-active");
             },
             _onBlurred: function onBlurred() {
                 this.isActivated = false;
                 this.dropdown.empty();
                 this.dropdown.close();
+                this.$node.removeClass("is-active");
+                this.input.checkInputQuery();
+                this._checkChanges();
             },
             _onEnterKeyed: function onEnterKeyed(type, $e) {
                 var cursorDatum, topSuggestionDatum;
@@ -969,13 +1032,22 @@
             },
             _onQueryChanged: function onQueryChanged(e, query) {
                 this.input.clearHintIfInvalid();
-                query.length >= this.minLength ? this.dropdown.update(query) : this.dropdown.empty();
+                if (query.length >= this.minLength) {
+                    this.dropdown.update(query);
+                } else {
+                    this.dropdown.empty();
+                }
                 this.dropdown.open();
                 this._setLanguageDirection();
+                this._checkChanges();
             },
             _onWhitespaceChanged: function onWhitespaceChanged() {
                 this._updateHint();
                 this.dropdown.open();
+            },
+            _checkChanges: function checkChanges() {
+                this.input.getInputValue() === this.input.getInputDefaultValue() ? this.$select.removeClass("is-changed") : this.$select.addClass("is-changed");
+                this.$select.trigger("changedInput.tt");
             },
             _setLanguageDirection: function setLanguageDirection() {
                 var dir;
@@ -1016,10 +1088,14 @@
                 this._setLanguageDirection();
                 this.eventBus.trigger("selected", datum.raw, datum.datasetName);
                 this.dropdown.close();
+                this._checkChanges();
                 _.defer(_.bind(this.dropdown.empty, this.dropdown));
             },
             open: function open() {
                 this.dropdown.open();
+            },
+            cancelValue: function cancelValue() {
+                this.input.cancelInputValue();
             },
             close: function close() {
                 this.dropdown.close();
@@ -1045,31 +1121,22 @@
             }
         });
         return Typeahead;
-        function buildDom(input, withHint) {
-            var $input, $wrapper, $dropdown, $hint;
-            $input = $(input);
+        function buildDom(select, withHint) {
+            var $select, $input, $wrapper, $dropdown, $hint, $button, $cancel, $edit;
+            $select = $(select).css(css.control);
+            $input = $(html.input).css(css.input);
             $wrapper = $(html.wrapper).css(css.wrapper);
             $dropdown = $(html.dropdown).css(css.dropdown);
-            $hint = $input.clone().css(css.hint).css(getBackgroundStyles($input));
-            $hint.val("").removeData().addClass("tt-hint").removeAttr("id name placeholder required").prop("readonly", true).attr({
-                autocomplete: "off",
-                spellcheck: "false",
+            $hint = $(html.input).css(css.hint).css(getBackgroundStyles($input));
+            $button = $(html.button).css(css.button);
+            $cancel = $(html.cancel).css(css.cancel);
+            $edit = $(html.edit);
+            $select.addClass("tt-select");
+            $hint.val("").addClass("tt-hint").prop("readonly", true).attr({
                 tabindex: -1
             });
-            $input.data(attrsKey, {
-                dir: $input.attr("dir"),
-                autocomplete: $input.attr("autocomplete"),
-                spellcheck: $input.attr("spellcheck"),
-                style: $input.attr("style")
-            });
-            $input.addClass("tt-input").attr({
-                autocomplete: "off",
-                spellcheck: false
-            }).css(withHint ? css.input : css.inputWithNoHint);
-            try {
-                !$input.attr("dir") && $input.attr("dir", "auto");
-            } catch (e) {}
-            return $input.wrap($wrapper).parent().prepend(withHint ? $hint : null).append($dropdown);
+            $input.val($select.find("option:selected").text()).addClass("tt-input").css(withHint ? css.input : css.inputWithNoHint);
+            return $select.wrap($wrapper).parent().append(withHint ? $hint : null).append($input).append($button).append($edit).append($dropdown).append($cancel);
         }
         function getBackgroundStyles($el) {
             return {
@@ -1083,12 +1150,132 @@
                 backgroundSize: $el.css("background-size")
             };
         }
-        function destroyDomStructure($node) {
-            var $input = $node.find(".tt-input");
-            _.each($input.data(attrsKey), function(val, key) {
-                _.isUndefined(val) ? $input.removeAttr(key) : $input.attr(key, val);
+        function getSelectDataset($select) {
+            var data = [];
+            $.each($select.find("option"), function(index, option) {
+                data.push(option.text);
             });
-            $input.detach().removeData(attrsKey).removeClass("tt-input").insertAfter($node);
+            return [ {
+                name: "select",
+                source: substringMatcher(data),
+                displayKey: "value"
+            } ];
+        }
+        function substringMatcher(strs) {
+            return function findMatches(q, cb, excludeStr) {
+                var matches, substrRegex;
+                matches = [];
+                substrRegex = new RegExp(q, "i");
+                $.each(strs, function(i, str) {
+                    if (substrRegex.test(str) && str !== excludeStr) {
+                        matches.push({
+                            value: str
+                        });
+                    }
+                });
+                cb(matches);
+            };
+        }
+        function destroyDomStructure($node) {
+            var $select = $node.find(".tt-select");
+            $select.detach().removeClass("tt-select").insertAfter($node);
+            $node.remove();
+        }
+    }();
+    var ControlPlain = function() {
+        "use strict";
+        var specialKeyCodeMap;
+        specialKeyCodeMap = {
+            9: "tab",
+            27: "esc",
+            37: "left",
+            39: "right",
+            13: "enter",
+            38: "up",
+            40: "down"
+        };
+        function ControlPlain(o) {
+            var $cancel, $edit, that, onBlur, onFocus, onInput;
+            that = this;
+            if (!o.control) {
+                $.error("missing control");
+            }
+            onBlur = _.bind(this._onBlur, this);
+            onFocus = _.bind(this._onFocus, this);
+            onInput = _.bind(this._onInput, this);
+            this.$node = buildDom(o.control);
+            $edit = this.$node.find(".tt-edit");
+            this.$control = $(o.control).on("blur.tt", onBlur).on("focus.tt", onFocus);
+            if (!_.isMsie()) {
+                this.$control.on("input.tt", onInput);
+            } else {
+                this.$control.on("keydown.tt keypress.tt cut.tt paste.tt", function($e) {
+                    if (specialKeyCodeMap[$e.which || $e.keyCode]) {
+                        return;
+                    }
+                    _.defer(_.bind(that._onInput, that, $e));
+                });
+            }
+            $cancel = this.$node.find(".tt-cancel");
+            $cancel.on("mousedown.tt", function($e) {
+                $e.preventDefault();
+                that.cancelValue();
+                that.$control.blur();
+                that._checkChanges();
+            });
+            $edit.on("click.tt", function($e) {
+                that.$control.focus();
+            });
+            this.setDefaultValue(this.getValue());
+        }
+        _.mixin(ControlPlain.prototype, {
+            _onBlur: function onBlur() {
+                this.$node.removeClass("is-active");
+            },
+            _onFocus: function onFocus() {
+                this.$node.addClass("is-active");
+            },
+            _onInput: function onInput() {
+                this._checkChanges();
+            },
+            _checkChanges: function checkChanges() {
+                this.getValue() === this.getDefaultValue() ? this.$control.removeClass("is-changed") : this.$control.addClass("is-changed");
+                this.$control.trigger("changedInput.tt");
+            },
+            setValue: function setControlValue(value) {
+                this.$control.val(value);
+            },
+            getValue: function getValue() {
+                return this.$control.val();
+            },
+            getDefaultValue: function getDefaultValue() {
+                return this.$control.data("default-value");
+            },
+            setDefaultValue: function getDefaultValue(value) {
+                return this.$control.data("default-value", value);
+            },
+            cancelValue: function cancelValue() {
+                this.$control.val(this.getDefaultValue());
+                this._checkChanges();
+            },
+            destroy: function destroy() {
+                destroyDomStructure(this.$node);
+                this.$node = null;
+            }
+        });
+        return ControlPlain;
+        function buildDom(control) {
+            var $control, $wrapper, $cancel, $edit;
+            $wrapper = $(html.wrapper).css(css.wrapper);
+            $control = $(control);
+            $cancel = $(html.cancel).css(css.cancel);
+            $edit = $(html.edit);
+            $control.addClass("tt-control");
+            return $control.wrap($wrapper).parent().append($cancel).append($edit);
+        }
+        function destroyDomStructure($node) {
+            var $control = $node.find(".tt-control");
+            $control.detach().removeClass("tt-control").insertAfter($node);
             $node.remove();
         }
     }();
@@ -1098,33 +1285,32 @@
         old = $.fn.typeahead;
         typeaheadKey = "ttTypeahead";
         methods = {
-            initialize: function initialize(o, datasets) {
-                datasets = _.isArray(datasets) ? datasets : [].slice.call(arguments, 1);
+            initialize: function initialize(o) {
                 o = o || {};
                 return this.each(attach);
                 function attach() {
-                    var $input = $(this), eventBus, typeahead;
-                    _.each(datasets, function(d) {
-                        d.highlight = !!o.highlight;
-                    });
-                    typeahead = new Typeahead({
-                        input: $input,
-                        eventBus: eventBus = new EventBus({
-                            el: $input
-                        }),
-                        withHint: _.isUndefined(o.hint) ? true : !!o.hint,
-                        minLength: o.minLength,
-                        autoselect: o.autoselect,
-                        datasets: datasets
-                    });
-                    $input.data(typeaheadKey, typeahead);
+                    var $control = $(this), typeahead;
+                    if ($control.is("select")) {
+                        typeahead = new Typeahead({
+                            select: $control,
+                            withHint: _.isUndefined(o.hint) ? true : !!o.hint,
+                            minLength: 0,
+                            autoselect: o.autoselect,
+                            hint: false
+                        });
+                    } else {
+                        typeahead = new ControlPlain({
+                            control: $control
+                        });
+                    }
+                    $control.data(typeaheadKey, typeahead);
                 }
             },
             open: function open() {
                 return this.each(openTypeahead);
                 function openTypeahead() {
-                    var $input = $(this), typeahead;
-                    if (typeahead = $input.data(typeaheadKey)) {
+                    var $control = $(this), typeahead;
+                    if (typeahead = $control.data(typeaheadKey) && $control.is("select")) {
                         typeahead.open();
                     }
                 }
@@ -1132,8 +1318,8 @@
             close: function close() {
                 return this.each(closeTypeahead);
                 function closeTypeahead() {
-                    var $input = $(this), typeahead;
-                    if (typeahead = $input.data(typeaheadKey)) {
+                    var $control = $(this), typeahead;
+                    if (typeahead = $control.data(typeaheadKey) && $control.is("select")) {
                         typeahead.close();
                     }
                 }
@@ -1141,14 +1327,14 @@
             val: function val(newVal) {
                 return !arguments.length ? getVal(this.first()) : this.each(setVal);
                 function setVal() {
-                    var $input = $(this), typeahead;
-                    if (typeahead = $input.data(typeaheadKey)) {
+                    var $control = $(this), typeahead;
+                    if (typeahead = $control.data(typeaheadKey) && $control.is("select")) {
                         typeahead.setVal(newVal);
                     }
                 }
-                function getVal($input) {
-                    var typeahead, query;
-                    if (typeahead = $input.data(typeaheadKey)) {
+                function getVal($select) {
+                    var $control = $(this), typeahead, query;
+                    if (typeahead = $control.data(typeaheadKey) && $control.is("select")) {
                         query = typeahead.getVal();
                     }
                     return query;
@@ -1157,10 +1343,19 @@
             destroy: function destroy() {
                 return this.each(unattach);
                 function unattach() {
-                    var $input = $(this), typeahead;
-                    if (typeahead = $input.data(typeaheadKey)) {
+                    var $control = $(this), typeahead;
+                    if (typeahead = $control.data(typeaheadKey)) {
                         typeahead.destroy();
-                        $input.removeData(typeaheadKey);
+                        $control.removeData(typeaheadKey);
+                    }
+                }
+            },
+            cancelValue: function cancelValue() {
+                return this.each(cancelValue);
+                function cancelValue() {
+                    var $control = $(this), typeahead;
+                    if (typeahead = $control.data(typeaheadKey)) {
+                        typeahead.cancelValue();
                     }
                 }
             }

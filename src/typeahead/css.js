@@ -8,6 +8,9 @@ var css = (function() {
   'use strict';
 
   var css =  {
+    control: {
+     display: 'none'
+    },
     wrapper: {
       position: 'relative',
       display: 'inline-block'
@@ -36,6 +39,16 @@ var css = (function() {
       left: '0',
       zIndex: '100',
       display: 'none'
+    },
+    button: {
+      position: 'absolute',
+      right: '0',
+      top: '0',
+      cursor: 'pointer'
+    },
+    cancel: {
+      position: 'absolute',
+      cursor: 'pointer'
     },
     suggestions: {
       display: 'block'

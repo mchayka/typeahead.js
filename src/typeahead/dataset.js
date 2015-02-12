@@ -13,8 +13,9 @@ var Dataset = (function() {
   // -----------
 
   function Dataset(o) {
+    var tepmlates;
     o = o || {};
-    o.templates = o.templates || {};
+    tepmlates = o.templates || {};
 
     if (!o.source) {
       $.error('missing source');
@@ -33,7 +34,7 @@ var Dataset = (function() {
     this.source = o.source;
     this.displayFn = getDisplayFn(o.display || o.displayKey);
 
-    this.templates = getTemplates(o.templates, this.displayFn);
+    this.templates = getTemplates(tepmlates, this.displayFn);
 
     this.$el = $(html.dataset.replace('%CLASS%', this.name));
   }
@@ -142,12 +143,12 @@ var Dataset = (function() {
       return this.$el;
     },
 
-    update: function update(query) {
+    update: function update(query, excludeStr) {
       var that = this;
 
       this.query = query;
       this.canceled = false;
-      this.source(query, render);
+      this.source(query, render, excludeStr);
 
       function render(suggestions) {
         // if the update has been canceled or if the query has changed

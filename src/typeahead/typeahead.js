@@ -14,22 +14,32 @@ var Typeahead = (function() {
 
   // THOUGHT: what if datasets could dynamically be added/removed?
   function Typeahead(o) {
-    var $menu, $input, $hint;
+    var $menu, $input, $hint, $select, $button, $cancel, $edit, that;
 
     o = o || {};
 
-    if (!o.input) {
-      $.error('missing input');
+    if (!o.select) {
+      $.error('missing select');
     }
 
+    o.datasets = {};
+
+    that = this;
     this.isActivated = false;
     this.autoselect = !!o.autoselect;
     this.minLength = _.isNumber(o.minLength) ? o.minLength : 1;
-    this.$node = buildDom(o.input, o.withHint);
+    this.$node = buildDom(o.select, o.withHint);
+    this.$select = $(o.select);
 
+    $select = $(o.select);
     $menu = this.$node.find('.tt-dropdown-menu');
     $input = this.$node.find('.tt-input');
     $hint = this.$node.find('.tt-hint');
+    $button = this.$node.find('.tt-button');
+    $cancel = this.$node.find('.tt-cancel');
+    $edit = this.$node.find('.tt-edit');
+
+    o.datasets = getSelectDataset($select);
 
     // #705: if there's scrollable overflow, ie doesn't support
     // blur cancellations when the scrollbar is clicked
@@ -64,7 +74,7 @@ var Typeahead = (function() {
     .onSync('closed', this._onClosed, this)
     .onAsync('datasetRendered', this._onDatasetRendered, this);
 
-    this.input = new Input({ input: $input, hint: $hint })
+    this.input = new Input({ input: $input, hint: $hint, select: $select })
     .onSync('focused', this._onFocused, this)
     .onSync('blurred', this._onBlurred, this)
     .onSync('enterKeyed', this._onEnterKeyed, this)
@@ -75,7 +85,25 @@ var Typeahead = (function() {
     .onSync('leftKeyed', this._onLeftKeyed, this)
     .onSync('rightKeyed', this._onRightKeyed, this)
     .onSync('queryChanged', this._onQueryChanged, this)
-    .onSync('whitespaceChanged', this._onWhitespaceChanged, this);
+    .onSync('whitespaceChanged', this._onWhitespaceChanged, this)
+    .onSync('cancelValue', this._checkChanges, this);
+
+    $button.on('mousedown.tt', function($e) {
+      $e.preventDefault();
+      that.dropdown.update('', that.input.getInputValue());
+      that.dropdown.open();
+    });
+
+    $cancel.on('mousedown.tt', function($e) {
+      $e.preventDefault();
+      that.input.blur();
+      that.input.cancelInputValue();
+      that._checkChanges();
+    });
+
+    $edit.on('click.tt', function($e) {
+      that.input.focus();
+    });
 
     this._setLanguageDirection();
   }
@@ -120,19 +148,23 @@ var Typeahead = (function() {
 
     _onClosed: function onClosed() {
       this.input.clearHint();
-
       this.eventBus.trigger('closed');
     },
 
     _onFocused: function onFocused() {
       this.isActivated = true;
-      this.dropdown.open();
+      // this.dropdown.update('', this.input.getInputValue());
+      // this.dropdown.open();
+      this.$node.addClass('is-active');
     },
 
     _onBlurred: function onBlurred() {
       this.isActivated = false;
       this.dropdown.empty();
       this.dropdown.close();
+      this.$node.removeClass('is-active');
+      this.input.checkInputQuery();
+      this._checkChanges();
     },
 
     _onEnterKeyed: function onEnterKeyed(type, $e) {
@@ -201,17 +233,32 @@ var Typeahead = (function() {
     _onQueryChanged: function onQueryChanged(e, query) {
       this.input.clearHintIfInvalid();
 
-      query.length >= this.minLength ?
-        this.dropdown.update(query) :
+      if (query.length >= this.minLength) {
+        // if (this.$select.find('option:selected').text() === query) {
+        //   this.dropdown.empty();
+        // }
+        // else {
+          this.dropdown.update(query);
+        // }
+      }
+      else {
         this.dropdown.empty();
+      }
 
       this.dropdown.open();
       this._setLanguageDirection();
+      this._checkChanges();
     },
 
     _onWhitespaceChanged: function onWhitespaceChanged() {
       this._updateHint();
       this.dropdown.open();
+    },
+
+    _checkChanges: function checkChanges() {
+      this.input.getInputValue() === this.input.getInputDefaultValue() ?
+        this.$select.removeClass('is-changed') : this.$select.addClass('is-changed');
+      this.$select.trigger('changedInput.tt');
     },
 
     _setLanguageDirection: function setLanguageDirection() {
@@ -270,6 +317,7 @@ var Typeahead = (function() {
 
       this.eventBus.trigger('selected', datum.raw, datum.datasetName);
       this.dropdown.close();
+      this._checkChanges();
 
       // #118: allow click event to bubble up to the body before removing
       // the suggestions otherwise we break event delegation
@@ -280,6 +328,10 @@ var Typeahead = (function() {
 
     open: function open() {
       this.dropdown.open();
+    },
+
+    cancelValue: function cancelValue() {
+      this.input.cancelInputValue();
     },
 
     close: function close() {
@@ -318,44 +370,41 @@ var Typeahead = (function() {
 
   return Typeahead;
 
-  function buildDom(input, withHint) {
-    var $input, $wrapper, $dropdown, $hint;
+  function buildDom(select, withHint) {
+    var $select, $input, $wrapper, $dropdown, $hint, $button, $cancel, $edit;
 
-    $input = $(input);
+    $select = $(select).css(css.control);
+    $input = $(html.input).css(css.input);
     $wrapper = $(html.wrapper).css(css.wrapper);
     $dropdown = $(html.dropdown).css(css.dropdown);
-    $hint = $input.clone().css(css.hint).css(getBackgroundStyles($input));
+    $hint = $(html.input).css(css.hint).css(getBackgroundStyles($input));
+    $button = $(html.button).css(css.button);
+    $cancel = $(html.cancel).css(css.cancel);
+    $edit = $(html.edit);
+
+    $select
+    .addClass('tt-select');
 
     $hint
     .val('')
-    .removeData()
     .addClass('tt-hint')
-    .removeAttr('id name placeholder required')
     .prop('readonly', true)
-    .attr({ autocomplete: 'off', spellcheck: 'false', tabindex: -1 });
-
-    // store the original values of the attrs that get modified
-    // so modifications can be reverted on destroy
-    $input.data(attrsKey, {
-      dir: $input.attr('dir'),
-      autocomplete: $input.attr('autocomplete'),
-      spellcheck: $input.attr('spellcheck'),
-      style: $input.attr('style')
-    });
+    .attr({ tabindex: -1 });
 
     $input
+    .val($select.find('option:selected').text())
     .addClass('tt-input')
-    .attr({ autocomplete: 'off', spellcheck: false })
     .css(withHint ? css.input : css.inputWithNoHint);
 
-    // ie7 does not like it when dir is set to auto
-    try { !$input.attr('dir') && $input.attr('dir', 'auto'); } catch (e) {}
-
-    return $input
+    return $select
     .wrap($wrapper)
     .parent()
-    .prepend(withHint ? $hint : null)
-    .append($dropdown);
+    .append(withHint ? $hint : null)
+    .append($input)
+    .append($button)
+    .append($edit)
+    .append($dropdown)
+    .append($cancel);
   }
 
   function getBackgroundStyles($el) {
@@ -371,19 +420,43 @@ var Typeahead = (function() {
     };
   }
 
-  function destroyDomStructure($node) {
-    var $input = $node.find('.tt-input');
+  function getSelectDataset($select) {
+    var data = [];
 
-    // need to remove attrs that weren't previously defined and
-    // revert attrs that originally had a value
-    _.each($input.data(attrsKey), function(val, key) {
-      _.isUndefined(val) ? $input.removeAttr(key) : $input.attr(key, val);
+    $.each($select.find('option'), function(index, option){
+        data.push(option.text);
     });
+    return [{
+      name: 'select',
+      source: substringMatcher(data),
+      displayKey: 'value'
+    }];
+  }
 
-    $input
+  function substringMatcher(strs) {
+    return function findMatches(q, cb, excludeStr) {
+      var matches, substrRegex;
+
+      matches = [];
+
+      substrRegex = new RegExp(q, 'i');
+
+      $.each(strs, function(i, str) {
+        if (substrRegex.test(str) && str !== excludeStr) {
+          matches.push({ value: str });
+        }
+      });
+
+      cb(matches);
+    };
+  };
+
+  function destroyDomStructure($node) {
+    var $select = $node.find('.tt-select');
+
+    $select
     .detach()
-    .removeData(attrsKey)
-    .removeClass('tt-input')
+    .removeClass('tt-select')
     .insertAfter($node);
 
     $node.remove();

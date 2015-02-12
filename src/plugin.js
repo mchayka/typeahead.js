@@ -1,4 +1,4 @@
-/*
+ /*
  * typeahead.js
  * https://github.com/twitter/typeahead.js
  * Copyright 2013-2014 Twitter, Inc. and other contributors; Licensed MIT
@@ -14,34 +14,30 @@
   typeaheadKey = 'ttTypeahead';
 
   methods = {
-    // supported signatures:
-    // function(o, dataset, dataset, ...)
-    // function(o, [dataset, dataset, ...])
-    initialize: function initialize(o, datasets) {
-      datasets = _.isArray(datasets) ? datasets : [].slice.call(arguments, 1);
+    initialize: function initialize(o) {
 
       o = o || {};
 
       return this.each(attach);
 
       function attach() {
-        var $input = $(this), eventBus, typeahead;
+        var $control = $(this), typeahead;
 
-        _.each(datasets, function(d) {
-          // HACK: force highlight as a top-level config
-          d.highlight = !!o.highlight;
-        });
+        if ($control.is("select")) {
+          typeahead = new Typeahead({
+            select: $control,
+            withHint: _.isUndefined(o.hint) ? true : !!o.hint,
+            minLength: 0,
+            autoselect: o.autoselect,
+            hint: false
+          });
+        } else {
+          typeahead = new ControlPlain({
+            control: $control,
+          });
+        }
 
-        typeahead = new Typeahead({
-          input: $input,
-          eventBus: eventBus = new EventBus({ el: $input }),
-          withHint: _.isUndefined(o.hint) ? true : !!o.hint,
-          minLength: o.minLength,
-          autoselect: o.autoselect,
-          datasets: datasets
-        });
-
-        $input.data(typeaheadKey, typeahead);
+        $control.data(typeaheadKey, typeahead);
       }
     },
 
@@ -49,9 +45,9 @@
       return this.each(openTypeahead);
 
       function openTypeahead() {
-        var $input = $(this), typeahead;
+        var $control = $(this), typeahead;
 
-        if (typeahead = $input.data(typeaheadKey)) {
+        if (typeahead = $control.data(typeaheadKey) && $control.is("select")) {
           typeahead.open();
         }
       }
@@ -61,9 +57,9 @@
       return this.each(closeTypeahead);
 
       function closeTypeahead() {
-        var $input = $(this), typeahead;
+        var $control = $(this), typeahead;
 
-        if (typeahead = $input.data(typeaheadKey)) {
+        if (typeahead = $control.data(typeaheadKey) && $control.is("select")) {
           typeahead.close();
         }
       }
@@ -75,17 +71,17 @@
       return !arguments.length ? getVal(this.first()) : this.each(setVal);
 
       function setVal() {
-        var $input = $(this), typeahead;
+        var $control = $(this), typeahead;
 
-        if (typeahead = $input.data(typeaheadKey)) {
+        if (typeahead = $control.data(typeaheadKey) && $control.is("select")) {
           typeahead.setVal(newVal);
         }
       }
 
-      function getVal($input) {
-        var typeahead, query;
+      function getVal($select) {
+        var $control = $(this), typeahead, query;
 
-        if (typeahead = $input.data(typeaheadKey)) {
+        if (typeahead = $control.data(typeaheadKey) && $control.is("select")) {
           query = typeahead.getVal();
         }
 
@@ -97,11 +93,23 @@
       return this.each(unattach);
 
       function unattach() {
-        var $input = $(this), typeahead;
+        var $control = $(this), typeahead;
 
-        if (typeahead = $input.data(typeaheadKey)) {
+        if (typeahead = $control.data(typeaheadKey)) {
           typeahead.destroy();
-          $input.removeData(typeaheadKey);
+          $control.removeData(typeaheadKey);
+        }
+      }
+    },
+
+    cancelValue: function cancelValue() {
+      return this.each(cancelValue);
+
+      function cancelValue() {
+        var $control = $(this), typeahead;
+
+        if (typeahead = $control.data(typeaheadKey)) {
+          typeahead.cancelValue();
         }
       }
     }

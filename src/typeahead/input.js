@@ -38,6 +38,7 @@ var Input = (function() {
     onInput = _.bind(this._onInput, this);
 
     this.$hint = $(o.hint);
+    this.$select = $(o.select);
     this.$input = $(o.input)
     .on('blur.tt', onBlur)
     .on('focus.tt', onFocus)
@@ -73,6 +74,9 @@ var Input = (function() {
     // on initialization, it'll most likely be an empty string
     this.query = this.$input.val();
 
+    // store default value to be able to reset value
+    this.$input.data('default-value', this.query);
+
     // helps with calculating the width of the input's value
     this.$overflowHelper = buildOverflowHelper(this.$input);
   }
@@ -93,7 +97,7 @@ var Input = (function() {
     // ### private
 
     _onBlur: function onBlur() {
-      this.resetInputValue();
+      // this.resetInputValue();
       this.trigger('blurred');
     },
 
@@ -201,6 +205,30 @@ var Input = (function() {
 
       // silent prevents any additional events from being triggered
       silent ? this.clearHint() : this._checkInputValue();
+    },
+
+    cancelInputValue: function cancelInputValue() {
+      this.setInputValue(this.$input.data('default-value'), true);
+      this.trigger('cancelValue');
+    },
+
+    getInputDefaultValue: function getInputDefaultValue() {
+      return this.$input.data('default-value');
+    },
+
+    checkInputQuery: function checkInputQuery() {
+      var match = false,
+          inputValue = this.getInputValue();
+
+      $.each( this.$select.find('option'), function(index, item){
+        if ($(item).text() == inputValue) {
+          match = true;
+        }
+      });
+
+      if (!match) {
+        this.cancelInputValue();
+      }
     },
 
     resetInputValue: function resetInputValue() {

@@ -1,0 +1,36 @@
+<html class="no-js">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title></title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <script src="../bower_components/jquery/jquery.js"></script>
+        <script src="../dist/typeahead.jquery.js"></script>
+    </head>
+    <body>
+      <p>
+        <select id="custom">
+        	<option value="1">Value 1</option>
+            <option value="2">Value 2</option>
+            <option value="3">Value 3</option>
+            <option value="4">Value 4</option>
+            <option value="5">Value 5</option>
+        </select>
+      </p>
+      <p>
+        <input type="text" id="custom1">
+      </p>
+      <button id="cancel" type="button">Cancel</button>
+
+        <script>
+            $('#custom').typeahead();
+            $('#custom1').typeahead();
+            $('#cancel').click(function(){
+              $('#custom').typeahead('cancelValue');
+              $('#custom1').typeahead('cancelValue');
+            });
+        </script>
+    </body>
+</html>
