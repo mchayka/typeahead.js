@@ -6,7 +6,7 @@
 
 var html = (function() {
   return {
-    wrapper: '<span class="twitter-typeahead"></span>',
+    wrapper: '<span class="twitter-typeahead twitter-typeahead-custom"></span>',
     input: '<input autocomplete="off" spellcheck="false" type="text">',
     dropdown: '<span class="tt-dropdown-menu"></span>',
     button: '<span class="tt-button" role="button">&#x25BC;</span>',

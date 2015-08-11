@@ -11,7 +11,7 @@
 
   old = $.fn.typeahead;
 
-  typeaheadKey = 'ttTypeahead';
+  typeaheadKey = 'ttTypeaheadCustom';
 
   methods = {
     initialize: function initialize(o) {
@@ -115,7 +115,7 @@
     }
   };
 
-  $.fn.typeahead = function(method) {
+  $.fn.typeaheadCustom = function(method) {
     var tts;
 
     // methods that should only act on intialized typeaheads
@@ -130,8 +130,8 @@
     }
   };
 
-  $.fn.typeahead.noConflict = function noConflict() {
-    $.fn.typeahead = old;
+  $.fn.typeaheadCustom.noConflict = function noConflict() {
+    $.fn.typeaheadCustom = old;
     return this;
   };
 })();

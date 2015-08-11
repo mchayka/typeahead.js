@@ -128,7 +128,7 @@
     }();
     var html = function() {
         return {
-            wrapper: '<span class="twitter-typeahead"></span>',
+            wrapper: '<span class="twitter-typeahead twitter-typeahead-custom"></span>',
             input: '<input autocomplete="off" spellcheck="false" type="text">',
             dropdown: '<span class="tt-dropdown-menu"></span>',
             button: '<span class="tt-button" role="button">&#x25BC;</span>',
@@ -1283,7 +1283,7 @@
         "use strict";
         var old, typeaheadKey, methods;
         old = $.fn.typeahead;
-        typeaheadKey = "ttTypeahead";
+        typeaheadKey = "ttTypeaheadCustom";
         methods = {
             initialize: function initialize(o) {
                 o = o || {};
@@ -1360,7 +1360,7 @@
                 }
             }
         };
-        $.fn.typeahead = function(method) {
+        $.fn.typeaheadCustom = function(method) {
             var tts;
             if (methods[method] && method !== "initialize") {
                 tts = this.filter(function() {
@@ -1371,8 +1371,8 @@
                 return methods.initialize.apply(this, arguments);
             }
         };
-        $.fn.typeahead.noConflict = function noConflict() {
-            $.fn.typeahead = old;
+        $.fn.typeaheadCustom.noConflict = function noConflict() {
+            $.fn.typeaheadCustom = old;
             return this;
         };
     })();
